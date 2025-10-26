@@ -43,9 +43,9 @@ pragma solidity ^0.8.20;
                 | owns
                 v
         [AaveAdapter] <--> [Aave v3 Pool]
-                |                  |
+                |                   |
                 | supplies/withdraws|
-                v                  v
+                v                   v
         [Underlying Asset]    [aTokens]
                 |
                 | donates slice
