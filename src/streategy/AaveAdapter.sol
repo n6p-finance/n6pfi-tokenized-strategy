@@ -20,6 +20,96 @@ pragma solidity ^0.8.20;
     - Max exposure checks against real protocol data
     - Comprehensive error handling and events
   - YearnV3 Strategy Guide https://docs.yearn.fi/developers/v3/strategy_writing_guide
+
+  - Architecture of AaveAdapter:
+        [NapFi/YearnV3 Vault]
+                |
+                | owns
+                v
+        [AaveAdapter] <--> [Aave v3 Pool]
+                |                  |
+                | supplies/withdraws|
+                v                  v
+        [Underlying Asset]    [aTokens]
+                |
+                | donates slice
+                v
+        [Octant Allocation]
+
+   - Overall Architecture:
+   
+User
+ │
+ ▼
+Octant Vault (ERC-4626)  ──(deposits shares)──►  (Octant manages vault shares)
+ │
+ ▼
+NapFi Meta-Donation Strategy  (ERC-4626 TokenizedStrategy)
+ ├─ Yearn/Kalani Adapter
+ │     └─ tokenizedStrategy.harvest() → realizeGain() → report()
+ ├─ Aave Adapter  <──────────── INTERNALS + INNOVATIONS 
+ │     ├─ depositToAave(amount) -> pool.supply(asset, amount, address(this), 0)
+ │     ├─ withdrawFromAave(amount) -> pool.withdraw(asset, amount, to)
+ │     │
+ │     ├─ claimRewards() -> RewardHandler.claim()
+ │     │     ├─ RewardHandler:
+ │     │     │     ├─ swapRewardsToStable() via Uniswap V4 Hook
+ │     │     │     ├─ route 5% to DonationAccountant
+ │     │     │     └─ stakeRemaining() for compounding
+ │     │
+ │     ├─ accounting:
+ │     │     ├─ lastAccountedAssets
+ │     │     ├─ totalAssets() reads aToken balance + converted rewards
+ │     │     ├─ realizedYield = max(0, currentAssets - lastAccountedAssets)
+ │     │     ├─ donationSlice = realizedYield * donationRate
+ │     │     ├─ donationBuffer = liquidityReserve (2–3%) for instant donation payouts
+ │     │     └─ dynamicAPY = weighted(AaveInterest + RewardYield)
+ │     │
+ │     ├─ innovations:
+ │     │     ├─  Donation-Sliced Yield Stream (DST):
+ │     │     │     Real-time slicing of Aave interest into DonationAccountant.
+ │     │     ├─  Dynamic Risk Scoring Engine:
+ │     │     │     Adjusts exposure limits using on-chain oracle + volatility data.
+ │     │     ├─  Reserve Buffer System:
+ │     │     │     Keeps small liquidity pool to smooth donation transfers.
+ │     │     ├─  Reward Auto-Conversion Hook:
+ │     │     │     Uses Uniswap V4 Hooks to convert stkAAVE / GHO → USDC for donation.
+ │     │     ├─  Chainlink Automation Triggers:
+ │     │     │     Auto-call harvest() when aToken yield > threshold.
+ │     │     ├─  Liquidation Safety Watchdog:
+ │     │     │     Monitors healthFactor() and pauses deposits if market risk rises.
+ │     │     └─  Impact Reporting Feed:
+ │     │           Publishes donation metrics to Octant + off-chain dashboards.
+ │     │
+ │     ├─ safety:
+ │     │     ├─ oracleSanityCheck() — price validity & deviation limit
+ │     │     ├─ maxExposureCheck() — asset concentration limiter
+ │     │     ├─ pause/unwind() — emergency withdraw & fund recovery
+ │     │     ├─ minDonationThreshold() — avoids dust transactions
+ │     │     └─ ReentrancyGuard + SafeERC20 wrappers
+ │     │
+ │     └─ emits:
+ │           AaveHarvested(gain, donationAmount, riskScore, timestamp)
+ │           AaveRiskUpdated(asset, exposure, volatility, timestamp)
+ │
+ ├─ Spark Adapter
+ ├─ Morpho Adapter
+ └─ Donation Accountant
+        ├─ computeDonation(realizedYield)  // e.g. 5%
+        ├─ call OctantAllocation.transfer(donationAmount)
+        ├─ update totalDonated[user]
+        └─ emit YieldDonated(user, donationAmount, timestamp)
+        │
+        ▼
+Proof-of-Impact NFT (ImpactNFT)
+        ├─ updateTier(user, totalDonated[user])
+        └─ emit TierUpgraded(user, newTier)
+        │
+        ▼
+User Wallet + Dashboard
+        ├─ show: totalEarned | totalDonated | NFT tier | leaderboard
+        └─ optional: donation-rate slider (1-10%), revoke/withdraw option
+
 */
 
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
