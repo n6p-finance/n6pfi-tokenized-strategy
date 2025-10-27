@@ -133,24 +133,15 @@ import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol"
 import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 import {ERC4626} from "openzeppelin-contracts/token/ERC20/extensions/ERC4626.sol";
-import {IAavePool} from "../interfaces/IAavePool.sol";
 
 // --------------------------------------------------
 // External Interfaces
 // --------------------------------------------------
-
-// Rewards controller interface for claiming incentive tokens.
-interface IRewardsController {
-    function getRewardsList() external view returns (address[] memory);
-    function claimAllRewardsToSelf(address[] calldata assets)
-        external
-        returns (address[] memory rewardsList, uint256[] memory claimedAmounts);
-}
-
-// Called when yield is donated — NFT tiers upgrade to track social impact.
-interface IImpactNFT {
-    function updateTier(address user, uint256 totalDonated) external;
-}
+import {IRewardsController} from "../interfaces/IRewardsController.sol";
+import {IUniswapV4Hook} from "../interfaces/IUniswapV4Hook.sol";
+import {IImpactNFT} from "../interfaces/IImpactNFT.sol";
+import {BaseHealthCheck} from "../utils/BaseHealthCheck.sol";
+import {IAavePool} from "../interfaces/IAavePool.sol";
 
 // --------------------------------------------------
 // AaveAdapter - Core Contract

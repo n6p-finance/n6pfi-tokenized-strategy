@@ -41,27 +41,13 @@ interface IMorpho {
     function getTotalSupplied(address asset, address user) external view returns (uint256);
 }
 
-interface IRewardsController {
-    // Claim all rewards for provided assets to the caller
-    function claimAllRewardsToSelf(address[] calldata assets)
-        external
-        returns (address[] memory rewardsList, uint256[] memory claimedAmounts);
-}
-
-interface IUniswapV4Hook {
-    // Swap a reward token -> stableToken and send to `to`. Returns amount received
-    function swapRewardsToStable(
-        address rewardToken,
-        uint256 amount,
-        address to,
-        address stableToken
-    ) external returns (uint256);
-}
-
-interface IImpactNFT {
-    // Update donor's tier/state
-    function updateTier(address user, uint256 totalDonated) external;
-}
+// --------------------------------------------------
+// External Interfaces
+// --------------------------------------------------
+import {IRewardsController} from "../interfaces/IRewardsController.sol";
+import {IUniswapV4Hook} from "../interfaces/IUniswapV4Hook.sol";
+import {IImpactNFT} from "../interfaces/IImpactNFT.sol";
+import {BaseHealthCheck} from "../utils/BaseHealthCheck.sol";
 
 /// ---------------------------------------------------------------------------
 /// MorphoAdapter
