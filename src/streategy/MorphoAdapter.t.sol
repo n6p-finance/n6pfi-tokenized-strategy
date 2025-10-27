@@ -18,10 +18,11 @@ pragma solidity ^0.8.20;
   - This adapter is owner-controlled (owner = NapFiVault / strategy manager). For production use, prefer a multisig/timelock.
 */
 
-import "openzeppelin-contracts/token/ERC20/IERC20.sol";
-import "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import "openzeppelin-contracts/security/ReentrancyGuard.sol";
-import "openzeppelin-contracts/access/Ownable.sol";
+import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
+import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
+import {ERC4626} from "openzeppelin-contracts/token/ERC20/extensions/ERC4626.sol";
 
 // --------------------------------------------------
 // External Interfaces
@@ -30,11 +31,12 @@ import {IRewardsController} from "../interfaces/IRewardsController.sol";
 import {IUniswapV4Hook} from "../interfaces/IUniswapV4Hook.sol";
 import {IImpactNFT} from "../interfaces/IImpactNFT.sol";
 import {BaseHealthCheck} from "../utils/BaseHealthCheck.sol";
+import {IMorpho} from "../interfaces/IMorpho.sol";
 
 /// ---------------------------------------------------------------------------
 /// MorphoAdapter
 /// ---------------------------------------------------------------------------
-contract MorphoAdapter is ReentrancyGuard, Ownable {
+contract MorphoAdapter is ReentrancyGuard, Ownable, BaseHealthCheck, ERC4626 {
     using SafeERC20 for IERC20;
 
     // -----------------------------

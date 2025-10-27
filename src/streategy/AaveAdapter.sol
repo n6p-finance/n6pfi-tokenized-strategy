@@ -146,7 +146,7 @@ import {IAavePool} from "../interfaces/IAavePool.sol";
 // --------------------------------------------------
 // AaveAdapter - Core Contract
 // --------------------------------------------------
-contract AaveAdapter is ERC4626, ReentrancyGuard, Ownable {
+contract AaveAdapter is ERC4626, ReentrancyGuard, Ownable, BaseHealthCheck {
     using SafeERC20 for IERC20;
 
     // -------------------------

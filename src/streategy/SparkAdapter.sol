@@ -21,44 +21,35 @@ pragma solidity ^0.8.20;
  * - Best Yield-Donating Strategy
  * - Most Creative Octant Innovation (SparkBoost)
  * - Best Uniswap V4 Integration
+ *
+ * Current and Future Improvements:
+ * - Add Chainlink Automation functions for gasless harvesting
+ * - Integrate Spark's native yield donation (once available)
+ * - Add more granular admin controls (e.g., pausing donations)
+ * - ERC-4626 compliance checks and optimizations
+ * - Spark Vault's limited capacity handling
  */
 
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
+import {ERC4626} from "openzeppelin-contracts/token/ERC20/extensions/ERC4626.sol";
 
 // --------------------
 // Interfaces
 // --------------------
 
-interface ISparkPool {
-    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
-    function withdraw(address asset, uint256 amount, address to) external returns (uint256);
-    function claimAllRewards(address onBehalfOf)
-        external
-        returns (address[] memory rewardTokens, uint256[] memory claimedAmounts);
-    function balanceOf(address user) external view returns (uint256);
-}
-
-interface IUniswapV4Hook {
-    function swapRewardsToStable(address rewardToken, uint256 amount, address to, address stableToken)
-        external
-        returns (uint256);
-}
-
-interface IImpactNFT {
-    function updateTier(address user, uint256 totalDonated) external;
-}
-
-interface IDonationAccountant {
-    function recordDonation(address strategy, uint256 amount) external;
-}
+import {ISparkPool} from "../interfaces/ISparkPool.sol";
+import {IUniswapV4Hook} from "../interfaces/IUniswapV4Hook.sol";
+import {IDonationAccountant} from "../interfaces/IDonationAccountant.sol";
+import {IImpactNFT} from "../interfaces/IImpactNFT.sol";
+import {BaseHealthCheck} from "../utils/BaseHealthCheck.sol";
 
 // --------------------
 // Core Contract
 // --------------------
-contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
+contract NapFiSparkAdapter is ReentrancyGuard, Ownable, BaseHealthCheck, ERC4626 {
     using SafeERC20 for IERC20;
 
     // --------------------------------------------------
