@@ -26,4 +26,43 @@ contract NapFiAaveTokenizedStrategy is BaseTokenizedStrategy, ERC4626 {
     {
         adapter = NapFiAaveAdapter(_adapter);
     }
+
+    //--------------------------------------------------
+    // Internal Overrides
+    //--------------------------------------------------
+
+    /// @notice Deploy funds to Spark via the adapter
+    function _deployFunds(uint256 amount) internal override {
+        adapter.depositToAave(amount);
+    }
+
+    /// @notice Withdraw funds when vault needs liquidity
+    function _freeFunds(uint256 amount) internal override {
+        adapter.withdrawFromAave(amount, address(this));
+    }
+
+    /// @notice Harvest yield, donate, and report profit/loss
+    function _harvestAndReport()
+        internal
+        override
+        returns (uint256 profit, uint256 loss, uint256 debtPayment) 
+    {
+        uint256 beforeAssets = totalAssets();
+        adapter.harvest();
+        uint256 afterAssets = totalAssets();
+
+        if (afterAssets > beforeAssets) {
+            profit = afterAssets - beforeAssets;
+        } else {
+            loss = beforeAssets - afterAssets;
+        }
+
+        // No external debt handling yet    
+        return (profit, loss, 0);
+    }
+
+    /// @notice Total managed assets
+    function totalAssets() public view override returns (uint256) {
+        return adapter.totalAssets();
+    }     
 }
