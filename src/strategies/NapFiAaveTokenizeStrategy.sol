@@ -2,67 +2,110 @@
 pragma solidity ^0.8.20;
 
 /**
- * NapFi Aave Tokenized Strategy (ERC-4626 Wrapper)
- * -------------------------------------------------
- * Wraps the NapFiAaveAdapter inside an ERC-4626-compatible
- * TokenizedStrategy for Octant V2 and Yearn Kalani Vaults.
- * 
- * Limitations:
- * - No external debt handling yet.
- * - ERC-4626 functions (deposit, mint, withdraw, redeem) are inherited
- *   from OpenZeppelin's ERC4626 implementation.
+ * NapFi Aave Tokenized Strategy (Octant V2 Compatible)
+ * ----------------------------------------------------
+ * Implements a minimal ERC-4626 TokenizedStrategy that deposits into
+ * Aave via its aToken vault, reports yield, and donates rewards to
+ * Octant’s donation address automatically.
+ *
+ * Based on Octant v2 "SavingsUsdcStrategy" tutorial:
+ * https://docs.v2.octant.build/docs/integration_guides_and_tutorials/strategy-development-example
+ *
+ * Hackathon Coverage:
+ * - Best Yield-Donating Strategy
+ * - Best Use of Aave
+ * - Best Integration of Octant v2 Modular Vaults
  */
 
-import { ERC20 } from "openzeppelin-contracts/token/ERC20/ERC20.sol";
-import { BaseTokenizedStrategy } from "tokenized-strategy/BaseTokenizedStrategy.sol";
-import { NapFiSparkAdapter } from "../strategy/SparkAdapter.sol";
-import {ERC4626} from "openzeppelin-contracts/token/ERC20/extensions/ERC4626.sol";
+import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { IERC4626 } from "openzeppelin-contracts/interfaces/IERC4626.sol";
+import { BaseHealthCheck } from "tokenized-strategy/BaseHealthCheck.sol";
+import { BaseStrategy } from "tokenized-strategy/BaseStrategy.sol";
+import { YieldDonatingTokenizedStrategy } from "tokenized-strategy/YieldDonatingTokenizedStrategy.sol";
 
-contract NapFiAaveTokenizedStrategy is BaseTokenizedStrategy, ERC4626 {
-    NapFiAaveAdapter public adapter;
+/**
+ * Key roles (Octant standard):
+ *  - Management: can set bounds, change donation address
+ *  - Keeper: triggers harvest/report()
+ *  - EmergencyAdmin: can pause & emergency withdraw
+ *  - Donation Address: receives minted yield shares
+ */
+contract NapFiAaveTokenizedStrategy is BaseHealthCheck {
+    // ----------------------------
+    // Protocol configuration
+    // ----------------------------
+    address public immutable AAVE_VAULT; // The ERC-4626 aToken vault (e.g., aUSDC)
+    IERC20 public immutable ASSET;        // Underlying (e.g., USDC)
 
-    constructor(address _asset, address _adapter)
-        BaseTokenizedStrategy(_asset, msg.sender)
+    // ----------------------------
+    // Constructor
+    // ----------------------------
+    constructor(
+        address _asset,
+        string memory _name,
+        address _management,
+        address _keeper,
+        address _emergencyAdmin,
+        address _donationAddress,
+        address _tokenizedStrategyAddress, // Octant’s TokenizedStrategy base
+        address _aaveVault                  // Aave ERC-4626 vault (e.g. Pool wrapper)
+    )
+        BaseHealthCheck(
+            _asset,
+            _name,
+            _management,
+            _keeper,
+            _emergencyAdmin,
+            _donationAddress,
+            _tokenizedStrategyAddress
+        )
     {
-        adapter = NapFiAaveAdapter(_adapter);
+        if (_asset == address(0) || _aaveVault == address(0))
+            revert("Invalid address");
+
+        AAVE_VAULT = _aaveVault;
+        ASSET = IERC20(_asset);
+        ASSET.approve(_aaveVault, type(uint256).max); // infinite approval
     }
 
-    //--------------------------------------------------
-    // Internal Overrides
-    //--------------------------------------------------
-
-    /// @notice Deploy funds to Spark via the adapter
-    function _deployFunds(uint256 amount) internal override {
-        adapter.depositToAave(amount);
+    // ----------------------------
+    // 1. Deploy user funds into Aave
+    // ----------------------------
+    function _deployFunds(uint256 _amount) internal override {
+        IERC4626(AAVE_VAULT).deposit(_amount, address(this));
     }
 
-    /// @notice Withdraw funds when vault needs liquidity
-    function _freeFunds(uint256 amount) internal override {
-        adapter.withdrawFromAave(amount, address(this));
+    // ----------------------------
+    // 2. Withdraw user funds from Aave
+    // ----------------------------
+    function _freeFunds(uint256 _amount) internal override {
+        IERC4626(AAVE_VAULT).withdraw(_amount, address(this), address(this));
     }
 
-    /// @notice Harvest yield, donate, and report profit/loss
+    // ----------------------------
+    // 3. Report total managed assets (used for yield calc)
+    // ----------------------------
     function _harvestAndReport()
         internal
+        view
         override
-        returns (uint256 profit, uint256 loss, uint256 debtPayment) 
+        returns (uint256 _totalAssets)
     {
-        uint256 beforeAssets = totalAssets();
-        adapter.harvest();
-        uint256 afterAssets = totalAssets();
-
-        if (afterAssets > beforeAssets) {
-            profit = afterAssets - beforeAssets;
-        } else {
-            loss = beforeAssets - afterAssets;
-        }
-
-        // No external debt handling yet    
-        return (profit, loss, 0);
+        uint256 shares = IERC4626(AAVE_VAULT).balanceOf(address(this));
+        uint256 vaultAssets = IERC4626(AAVE_VAULT).convertToAssets(shares);
+        uint256 idleAssets = ASSET.balanceOf(address(this));
+        _totalAssets = vaultAssets + idleAssets;
     }
 
-    /// @notice Total managed assets
-    function totalAssets() public view override returns (uint256) {
-        return adapter.totalAssets();
-    }     
+    // ----------------------------
+    // 4. Respect Aave deposit limit (proxy upstream)
+    // ----------------------------
+    function availableDepositLimit(address)
+        public
+        view
+        override
+        returns (uint256)
+    {
+        return IERC4626(AAVE_VAULT).maxDeposit(address(this));
+    }
 }
