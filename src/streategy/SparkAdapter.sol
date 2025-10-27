@@ -56,15 +56,14 @@ interface IDonationAccountant {
 }
 
 // --------------------
-// Main Contract
+// Core Contract
 // --------------------
 contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
-    /*//////////////////////////////////////////////////////////////
-                            STATE VARIABLES
-    //////////////////////////////////////////////////////////////*/
-
+    // --------------------------------------------------
+    // State Variables
+    // --------------------------------------------------
     ISparkPool public immutable sparkPool;
     IERC20 public immutable asset;           // e.g. USDC / DAI
     address public immutable sToken;         // Spark yield-bearing token (like sDAI)
@@ -83,9 +82,9 @@ contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
     mapping(address => bool) public boostedUsers;
     uint256 public boostMultiplier = 12000;  // 1.2x donation multiplier
 
-    /*//////////////////////////////////////////////////////////////
-                                 EVENTS
-    //////////////////////////////////////////////////////////////*/
+    // --------------------------------------------------
+    // Events & Modifiers
+    // --------------------------------------------------
     event DepositedToSpark(uint256 amount);
     event WithdrawnFromSpark(uint256 amount);
     event RewardsClaimed(address[] tokens, uint256[] amounts);
@@ -102,9 +101,9 @@ contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
         _;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                               CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
+    // --------------------------------------------------
+    // Constructor
+    // --------------------------------------------------
     constructor(
         address _asset,
         address _sparkPool,
@@ -122,10 +121,9 @@ contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
         asset.safeApprove(_sparkPool, type(uint256).max);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              CORE FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
+    // --------------------------------------------------
+    // Supply / Withdraw
+    // --------------------------------------------------
     function depositToSpark(uint256 amount) external onlyOwner notPaused nonReentrant {
         require(amount > 0, "zero deposit");
 
@@ -146,10 +144,9 @@ contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
         emit WithdrawnFromSpark(withdrawn);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              HARVEST & DONATION
-    //////////////////////////////////////////////////////////////*/
-
+    // --------------------------------------------------
+    // Harvesting
+    // --------------------------------------------------
     function harvest() public onlyOwner notPaused nonReentrant {
         // Step 1: Claim rewards and auto-convert via Uniswap Hook
         _claimAndConvertRewards();
@@ -189,10 +186,9 @@ contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
         lastAccountedAssets = totalAssets();
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              REWARD MANAGEMENT
-    //////////////////////////////////////////////////////////////*/
-
+    //--------------------------------------------------
+    // Internal: Claim and Convert Rewards
+    //--------------------------------------------------
     function _claimAndConvertRewards() internal {
         (address[] memory rewardTokens, uint256[] memory amounts) = sparkPool.claimAllRewards(address(this));
         emit RewardsClaimed(rewardTokens, amounts);
@@ -213,30 +209,27 @@ contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              SPARK BOOST
-    //////////////////////////////////////////////////////////////*/
-
+    //--------------------------------------------------
+    // SparkBoost Activation
+    //--------------------------------------------------
     function activateSparkBoost() external {
         require(!boostedUsers[msg.sender], "already boosted");
         boostedUsers[msg.sender] = true;
         emit SparkBoostActivated(msg.sender, boostMultiplier);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              ACCOUNTING
-    //////////////////////////////////////////////////////////////*/
-
+    //--------------------------------------------------
+    // View Functions
+    //--------------------------------------------------
     function totalAssets() public view returns (uint256) {
         uint256 supplied = IERC20(sToken).balanceOf(address(this));
         uint256 buffer = asset.balanceOf(address(this));
         return supplied + buffer;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                                SAFETY
-    //////////////////////////////////////////////////////////////*/
-
+    //--------------------------------------------------
+    // Emergency Controls
+    //--------------------------------------------------
     function pauseAdapter() external onlyOwner {
         paused = true;
         emit AdapterPaused();
@@ -252,10 +245,9 @@ contract NapFiSparkAdapter is ReentrancyGuard, Ownable {
         try sparkPool.withdraw(address(asset), type(uint256).max, to) {} catch {}
     }
 
-    /*//////////////////////////////////////////////////////////////
-                                ADMIN
-    //////////////////////////////////////////////////////////////*/
-
+    //--------------------------------------------------
+    // Admin Setters
+    //--------------------------------------------------
     function setDonationBps(uint16 _bps) external onlyOwner {
         require(_bps <= MAX_DONATION_BPS, "too high");
         donationBps = _bps;

@@ -23,24 +23,6 @@ import "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import "openzeppelin-contracts/security/ReentrancyGuard.sol";
 import "openzeppelin-contracts/access/Ownable.sol";
 
-/// ---------------------------------------------------------------------------
-/// Minimal external interfaces (mock-friendly)
-/// ---------------------------------------------------------------------------
-
-interface IMorpho {
-    // supply underlying asset into Morpho (onBehalfOf is adapter)
-    function supply(address asset, uint256 amount, address onBehalfOf) external;
-
-    // withdraw underlying from Morpho back to 'to', returns amount withdrawn
-    function withdraw(address asset, uint256 amount, address to) external returns (uint256);
-
-    // returns the current P2P index for an asset (scaled by 1e27)
-    function getP2PIndex(address asset) external view returns (uint256);
-
-    // returns total underlying supplied on behalf of a user (in underlying units)
-    function getTotalSupplied(address asset, address user) external view returns (uint256);
-}
-
 // --------------------------------------------------
 // External Interfaces
 // --------------------------------------------------
