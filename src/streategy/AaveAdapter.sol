@@ -132,25 +132,12 @@ import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
+import {ERC4626} from "openzeppelin-contracts/token/ERC20/extensions/ERC4626.sol";
+import {IAavePool} from "../interfaces/IAavePool.sol";
 
 // --------------------------------------------------
 // External Interfaces
 // --------------------------------------------------
-
-// Minimal subset of Aave v3 Pool interface used for deposits/withdrawals.
-interface IAavePool {
-    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
-    function withdraw(address asset, uint256 amount, address to) external returns (uint256);
-    function getReserveNormalizedIncome(address asset) external view returns (uint256);
-    function getUserAccountData(address user) external view returns (
-        uint256 totalCollateralBase,
-        uint256 totalDebtBase,
-        uint256 availableBorrowsBase,
-        uint256 currentLiquidationThreshold,
-        uint256 ltv,
-        uint256 healthFactor
-    );
-}
 
 // Rewards controller interface for claiming incentive tokens.
 interface IRewardsController {
@@ -158,13 +145,6 @@ interface IRewardsController {
     function claimAllRewardsToSelf(address[] calldata assets)
         external
         returns (address[] memory rewardsList, uint256[] memory claimedAmounts);
-}
-
-// Simple Uniswap V4 Hook interface to convert reward tokens → stable
-interface IUniswapV4Hook {
-    function swapRewardsToStable(address rewardToken, uint256 amount, address to, address stableToken)
-        external
-        returns (uint256);
 }
 
 // Called when yield is donated — NFT tiers upgrade to track social impact.
