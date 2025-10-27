@@ -11,6 +11,10 @@ pragma solidity ^0.8.20;
  * - No external debt handling yet.
  * - ERC-4626 functions (deposit, mint, withdraw, redeem) are inherited
  *   from OpenZeppelin's ERC4626 implementation.
+ *
+ * Important Note:
+ * This strategy assumes that the underlying adapter (NapFiSparkAdapter)
+ * correctly handles interactions with the Morpho protocol.
  */
 
 import { ERC20 } from "openzeppelin-contracts/token/ERC20/ERC20.sol";
