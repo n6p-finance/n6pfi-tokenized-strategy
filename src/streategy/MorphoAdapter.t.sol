@@ -36,7 +36,7 @@ import {IMorpho} from "../interfaces/IMorpho.sol";
 /// ---------------------------------------------------------------------------
 /// MorphoAdapter
 /// ---------------------------------------------------------------------------
-contract MorphoAdapter is ReentrancyGuard, Ownable, BaseHealthCheck, ERC4626 {
+contract NapFiMorphoAdapter is ReentrancyGuard, Ownable, BaseHealthCheck, ERC4626 {
     using SafeERC20 for IERC20;
 
     // -----------------------------
