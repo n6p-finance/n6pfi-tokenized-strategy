@@ -175,7 +175,7 @@ interface IImpactNFT {
 // --------------------------------------------------
 // AaveAdapter - Core Contract
 // --------------------------------------------------
-contract AaveAdapter is ReentrancyGuard, Ownable {
+contract AaveAdapter is ERC4626, ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     // -------------------------
@@ -233,15 +233,26 @@ contract AaveAdapter is ReentrancyGuard, Ownable {
     // --------------------------------------------------
     // Constructor
     // --------------------------------------------------
+    /*
+    The role assignments follow Octant v2's standardized pattern for operational security:
+        - Management is the primary administrator who can change other roles, intervene when safety bounds are hit, and redirect reward destinations
+        - Keeper calls the report() function to harvest and distribute accumulated rewards—this role can be automated and/or outsourced to 3rd-party services like Gelato
+        - Emergency Administrator can shut down the strategy and perform emergency withdrawals—perfect for delegation to 24/7 monitoring services
+        - Donation Address receives newly minted shares, which can be redeemed for the underlying USDC rewards
+        - Enable Burning is a boolean used in the event the strategy has a loss, based on its value the recovery mechanism will burn some of the donation address shares in order to compensate for the loss
+    */
     constructor(
-        address _aavePool,
-        address _rewardsController,
-        address _asset,
+        address _asset, // Octant docs
+        string memory _name, // Octant docs (update because unused here)
+        address _rewardsController, // Aave RewardsController
+        address _bot, // keepers bot (update because unused here)
+        address _emergencyAdmin, // emergency admin (update because unused here)
+        address _octantAllocation, // Octant allocation address
+        address _aavePool, // Aave v3 Pool address // tokenizedStrategy address
         address _aToken,
         address _uniswapHook,
-        address _octantAllocation,
         address _impactNFT
-    ) {
+    ) BaseHealthCheck(/* parameters */){
         // Assign external dependencies
         aavePool = IAavePool(_aavePool);
         rewardsController = IRewardsController(_rewardsController);
