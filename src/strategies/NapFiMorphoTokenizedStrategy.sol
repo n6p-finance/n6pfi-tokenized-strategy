@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 /**
- * NapFi Spark Tokenized Strategy (ERC-4626 Wrapper)
- * -------------------------------------------------
+ * NapFi Morpho Tokenized Strategy (ERC-4626 Wrapper)
+ * --------------------------------------------------
  * Wraps the NapFiSparkAdapter inside an ERC-4626-compatible
  * TokenizedStrategy for Octant V2 and Yearn Kalani Vaults.
  * 
@@ -31,7 +31,7 @@ contract NapFiSparkTokenizedStrategy is BaseTokenizedStrategy, ERC4626 {
     // Internal Overrides
     //--------------------------------------------------
 
-    /// @notice Deploy funds to Spark via the adapter
+    /// @notice Deploy funds to Morpho via the adapter
     function _deployFunds(uint256 amount) internal override {
         adapter.depositToMorpho(amount);
     }
