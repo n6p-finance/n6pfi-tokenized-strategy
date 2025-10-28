@@ -11,21 +11,28 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-// import {ReentrancyGuard} from "@openzeppelin-contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin-contracts/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {ERC6909} from "tokenized-strategy/contracts/token/ERC6909/ERC6909.sol";
+import {ERC6909} from "@openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol";
 
 // Morpho V2 Interfaces (based on their vault-v2 architecture)
 import {IMorpho} from "../interfaces/IMorpho.sol";
 //import {IMorphoMarket} from "../interfaces/IMorphoMarket.sol";
-//import {IMorphoRewards} from "../interfaces/IMorphoRewards.sol";
+import {IMorphoRewards} from "../interfaces/IMorphoRewards.sol";
 
 // Uniswap hooks/core
 import {BaseHook} from "uniswap-hooks/base/BaseHook.sol";
-import {Hooks} from "v4-core/libraries/Hooks.sol";
+import {Hooks} from "@uniswap/v4-core/libraries/Hooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/types/PoolKey.sol";
+import {BeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
+import {BeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {BeforeSwapDeltaLibrary} from "v4-core/src/libraries/BeforeSwapDeltaLibrary.sol";
 
 contract MorphoAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
     using SafeERC20 for IERC20;
@@ -248,7 +255,7 @@ contract MorphoAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
         });
     }
 
-    function _beforeSwap(address, PoolKey calldata key, SwapParams calldata, bytes calldata)
+    function _beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
         internal
         override
         returns (bytes4, BeforeSwapDelta, uint24)
@@ -523,25 +530,31 @@ contract MorphoAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
         return (yield, donation);
     }
 
-    function _claimAndOptimizeMorphoRewards() internal returns (uint256) {
-        // Claim rewards from Morpho
+    function _claimAndOptimizeMorphoRewards() internal returns (uint256 totalValue) {
+        MorphoStrategy storage strategy = morphoStrategies[msg.sender]; // <- changed
         address[] memory markets = activeMarkets;
-        (address[] memory rewardTokens, uint256[] memory amounts) = morphoRewards.claimRewards(markets, address(this));
-        
-        uint256 totalValue = 0;
-        
-        // Use V4 hooks for optimal reward swapping
+
+        // 1. Claim rewards directly to this contract via your RewardsController
+        (address[] memory rewardTokens, uint256[] memory claimedAmounts) = morphoRewards.claimAllRewardsToSelf(markets);
+
+        totalValue = 0;
+
+        // 2. Iterate over all claimed reward tokens
         for (uint256 i = 0; i < rewardTokens.length; i++) {
-            if (amounts[i] > 0) {
-                // Swap to strategy's asset using V4 with MEV protection
-                uint256 swappedAmount = _executeV4MorphoSwap(rewardTokens[i], _getStrategyAsset(msg.sender), amounts[i]);
+            uint256 amount = claimedAmounts[i];
+            if (amount > 0) {
+                address rewardToken = rewardTokens[i];
+                address strategyAsset = _getStrategyAsset(msg.sender);
+
+                // 3. Swap rewards to the strategy’s base asset using V4 hooks
+                uint256 swappedAmount = _executeV4MorphoSwap(rewardToken, strategyAsset, amount);
+
+                // 4. Update metrics
                 totalValue += swappedAmount;
-                
-                strategyMetrics[msg.sender].morphoRewardsAccrued += amounts[i];
-                totalMorphoRewards += amounts[i];
+                strategy.totalRewardsClaimed += amount; // <- track per-user
+                totalMorphoRewards += amount;
             }
         }
-        
         emit MorphoRewardsClaimed(msg.sender, totalValue, rewardTokens);
         return totalValue;
     }
@@ -752,17 +765,4 @@ contract MorphoAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
 
     // Emergency state
     bool public paused;
-}
-
-// Required placeholder interfaces for Morpho
-interface IMorpho {
-    // Morpho Blue interface methods would be defined here
-}
-
-interface IMorphoMarket {
-    // Morpho market interface
-}
-
-interface IMorphoRewards {
-    function claimRewards(address[] calldata markets, address onBehalf) external returns (address[] memory, uint256[] memory);
 }

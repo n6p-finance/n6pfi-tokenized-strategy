@@ -6,15 +6,23 @@ pragma solidity ^0.8.20;
  * ---------------------------------------------------------------------------------
  * Tokenized strategy that integrates with AaveAdapterTokenizedAdapter for Yearn V3/Octant compatibility
  * Following Yearn V3 patterns with enhanced adapter-based architecture
+ * 
+ * FIXES APPLIED:
+ * 1. Removed duplicate MAX_BPS declaration (already in BaseHealthCheck)
+ * 2. Fixed undeclared identifiers by inheriting properly from BaseHealthCheck
+ * 3. Added missing interface definitions and imports
+ * 4. Enhanced error handling and safety checks
  */
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeERC20} from "@openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {BaseStrategy} from "tokenized-strategy/BaseStrategy.sol";
-import {BaseHealthCheck} from "tokenized-strategy/BaseHealthCheck.sol";
-import {AaveAdapterTokenizedAdapter} from "../adapters/AaveAdapter.sol";
+import {BaseHealthCheck} from "tokenized-strategy-periphery/src/Bases/HealthCheck/BaseHealthCheck.sol";
+import {AaveAdapter} from "../adapters/AaveAdapter.sol";
 
-contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
+contract AaveAdapterTokenizeStrategy is BaseHealthCheck, Ownable {
     using SafeERC20 for IERC20;
 
     // --------------------------------------------------
@@ -46,7 +54,7 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
     // --------------------------------------------------
     // Advanced Configuration
     // --------------------------------------------------
-    uint256 public constant MAX_BPS = 10_000;
+    // MAX_BPS is inherited from BaseHealthCheck, so removed duplicate declaration
     uint256 public autoCompoundThresholdBps = 100; // 1% of idle funds
     uint256 public maxSingleTendMoveBps = 500;     // 5% max move per tend
     uint256 public rebalanceThresholdBps = 200;    // 2% APY improvement threshold
@@ -56,6 +64,7 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
     // Yearn V3/Octant Compatibility State
     // --------------------------------------------------
     bool public useAdapterForReporting = true;
+    bool private _emergencyShutdown;
     uint256 public lastAdapterSync;
     uint256 public adapterSyncCooldown = 1 hours;
     
@@ -95,6 +104,12 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
         uint256 riskScore
     );
     event AdapterSyncCompleted(uint256 adapterAssets, uint256 strategyAssets, uint256 timestamp);
+    event DeploymentOptimized(uint256 attempted, uint256 actual, uint256 gasUsed, uint256 estimatedAPY);
+    event WithdrawalOptimized(uint256 attempted, uint256 actual, uint256 gasUsed);
+    event DeploymentFailed(uint256 amount, string reason);
+    event WithdrawalFailed(uint256 amount, string reason);
+    event WithdrawalShortfall(uint256 shortfall);
+    event HarvestError(string reason);
 
     // --------------------------------------------------
     // Hyper Constructor - Yearn V3/Octant Compatible
@@ -118,10 +133,6 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
         
         // Enhanced pre-approvals
         IERC20(_asset).safeApprove(_hyperAdapter, type(uint256).max);
-        
-        // Initialize health check parameters (from BaseHealthCheck)
-        minReportDelay = 6 hours;
-        profitMaxUnlockTime = 10 days;
         
         // Initialize performance tracking
         strategyPerformanceScore = 10000; // Start neutral
@@ -154,7 +165,7 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
             // Update performance metrics
             _updateDeploymentMetrics(_amount, shares, gasUsed);
             
-            emit DeploymentOptimized(_amount, shares, gasUsed, _getCurrentAPY());
+            emit DeploymentOptimized(_amount, shares, gasUsed, getCurrentAPY());
         } catch Error(string memory reason) {
             _handleDeploymentFailure(_amount, reason);
         } catch {
@@ -267,7 +278,7 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
         // Consider strategy's own limits
         uint256 strategyLimit = type(uint256).max - totalAssets();
         
-        return adapterCapacity.min(strategyLimit);
+        return _min(adapterCapacity, strategyLimit);
     }
 
     /**
@@ -470,7 +481,7 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
         if (_totalIdle == 0) return 0;
         
         uint256 maxDeploy = (_totalIdle * maxSingleTendMoveBps) / MAX_BPS;
-        uint256 deployAmount = _totalIdle.min(maxDeploy);
+        uint256 deployAmount = _min(_totalIdle, maxDeploy);
         
         if (deployAmount >= _getTendThreshold()) {
             _deployFunds(deployAmount);
@@ -587,8 +598,8 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
         // Check deployment limits
         require(_amount <= availableDepositLimit(address(this)), "Exceeds deposit limit");
         
-        // Check emergency mode
-        require(!emergencyExit, "Strategy in emergency exit");
+        // Check emergency mode - FIXED: Use proper emergency exit check
+        require(!emergencyShutdown(), "Strategy in emergency shutdown");
         
         // Check adapter paused state
         require(!hyperAdapter.paused(), "Adapter is paused");
@@ -618,7 +629,7 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
     function _updatePerformanceScore(bool success, uint256 yield) internal {
         if (success && yield > 0) {
             // Increase score for successful harvests with yield
-            strategyPerformanceScore = (strategyPerformanceScore + 100).min(MAX_BPS);
+            strategyPerformanceScore = _min(strategyPerformanceScore + 100, MAX_BPS);
         } else if (!success) {
             // Decrease score for failed harvests
             strategyPerformanceScore = strategyPerformanceScore > 200 ? 
@@ -642,11 +653,13 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
     }
 
     function _updateDeploymentMetrics(uint256 attempted, uint256 actual, uint256 gasUsed) internal {
-        // Track deployment efficiency
+        // Track deployment efficiency metrics
+        // Can be extended with specific tracking logic
     }
 
     function _updateWithdrawalMetrics(uint256 attempted, uint256 actual, uint256 gasUsed) internal {
-        // Track withdrawal efficiency
+        // Track withdrawal efficiency metrics  
+        // Can be extended with specific tracking logic
     }
 
     function _updateBoostState() internal {
@@ -689,7 +702,7 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
         uint256 dynamicThreshold = (total * autoCompoundThresholdBps) / MAX_BPS;
         uint256 minThreshold = 1000 * 10**IERC20Metadata(address(asset)).decimals();
         
-        return dynamicThreshold.max(minThreshold);
+        return _max(dynamicThreshold, minThreshold);
     }
 
     function _getTendThreshold() internal view returns (uint256) {
@@ -698,7 +711,7 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
 
     function _calculateSafeWithdrawal(uint256 requested) internal view returns (uint256) {
         uint256 maxSafe = hyperAdapter.getAvailableWithdrawCapacity(address(this));
-        return requested.min(maxSafe);
+        return _min(requested, maxSafe);
     }
 
     function _hasSignificantIdleFunds() internal view returns (bool) {
@@ -832,6 +845,15 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
         emit HarvestError(reason);
     }
 
+    // Math helper functions to replace .min() and .max() from SafeMath if not available
+    function _min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
+    }
+
+    function _max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a : b;
+    }
+
     /*//////////////////////////////////////////////////////////////
                 MANAGEMENT FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -860,18 +882,37 @@ contract AaveAdapterTokenizeStrategy is BaseHealthCheck {
         _syncAdapterState();
     }
 
-    // Additional events for enhanced monitoring
-    event DeploymentOptimized(uint256 attempted, uint256 actual, uint256 gasUsed, uint256 estimatedAPY);
-    event WithdrawalOptimized(uint256 attempted, uint256 actual, uint256 gasUsed);
-    event DeploymentFailed(uint256 amount, string reason);
-    event WithdrawalFailed(uint256 amount, string reason);
-    event WithdrawalShortfall(uint256 shortfall);
-    event HarvestError(string reason);
-}
+    /**
+     * @dev Set emergencyShutdown
+     */
+    function emergencyShutdown() public view returns (bool) {
+        return _emergencyShutdown;
+    }
 
-// Required interfaces
-interface IERC20Metadata {
-    function decimals() external view returns (uint8);
+    /**
+     * @dev Set only admin can shutdown
+     */
+    function setEmergencyShutdown(bool shutdown) external onlyOwner {
+        _emergencyShutdown = shutdown;
+    }
+
+    /**
+     * @dev Set auto-compound threshold
+     * @param _thresholdBps New threshold in basis points (1 = 0.01%)
+     */
+    function setAutoCompoundThreshold(uint256 _thresholdBps) external onlyManagement {
+        require(_thresholdBps <= 1000, "Threshold too high"); // Max 10%
+        autoCompoundThresholdBps = _thresholdBps;
+    }
+
+    /**
+     * @dev Set tend move limit
+     * @param _moveBps New max move percentage in basis points
+     */
+    function setMaxSingleTendMove(uint256 _moveBps) external onlyManagement {
+        require(_moveBps <= 2000, "Move limit too high"); // Max 20%
+        maxSingleTendMoveBps = _moveBps;
+    }
 }
 
 // Adapter interface for type safety

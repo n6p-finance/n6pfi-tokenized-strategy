@@ -10,21 +10,28 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-// import {ReentrancyGuard} from "@openzeppelin-contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin-contracts/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {ERC6909} from "tokenized-strategy/contracts/token/ERC6909/ERC6909.sol";
+import {ERC6909} from "@openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol";
 // Aave V3 Interfaces
 import {IPool} from "../interfaces/aave/IPool.sol";
 import {IRewardsController} from "../interfaces/aave/IRewardsController.sol";
 
 // Uniswap hooks/core
 import {BaseHook} from "uniswap-hooks/base/BaseHook.sol";
-import {Hooks} from "v4-core/libraries/Hooks.sol";
+import {Hooks} from "@uniswap/v4-core/libraries/Hooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/types/PoolKey.sol";
+import {BeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
+import {BeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {BeforeSwapDeltaLibrary} from "v4-core/src/libraries/BeforeSwapDeltaLibrary.sol";
 
-contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
+contract AaveAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
@@ -38,7 +45,7 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
     // --------------------------------------------------
     // Hyper-Optimized Multi-Strategy Architecture
     // --------------------------------------------------
-    struct AaveStrategy {
+    struct Strategy {
         address strategy;
         address asset;
         bool enabled;
@@ -58,7 +65,7 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
         uint256 aaveRewardsAccrued;
     }
     
-    mapping(address => AaveStrategy) public aaveStrategies;
+    mapping(address => Strategy) public aaveStrategies;
     mapping(address => StrategyMetrics) public strategyMetrics;
     mapping(address => address) public strategyByAsset;
     address[] public activeStrategies;
@@ -291,7 +298,7 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
         require(_asset != address(0), "Invalid asset");
         require(!aaveStrategies[_strategy].enabled, "Strategy already registered");
         
-        aaveStrategies[_strategy] = AaveStrategy({
+        aaveStrategies[_strategy] = Strategy({
             strategy: _strategy,
             asset: _asset,
             enabled: true,
@@ -366,7 +373,7 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
         onlyActiveMarket(market) 
         returns (uint256) 
     {
-        AaveStrategy storage strategy = aaveStrategies[msg.sender];
+        Strategy storage strategy = aaveStrategies[msg.sender];
         require(amount > 0, "Zero supply");
         require(block.timestamp >= strategy.cooldownUntil, "Strategy in cooldown");
         
@@ -402,7 +409,7 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
         require(amount > 0, "Zero withdraw");
         require(to != address(0), "Invalid recipient");
         
-        AaveStrategy storage strategy = aaveStrategies[msg.sender];
+        Strategy storage strategy = aaveStrategies[msg.sender];
         AaveMarketConfig storage marketConfig = marketConfigs[market];
         
         // Execute withdrawal from Aave
@@ -438,7 +445,7 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
         require(borrowAmount > 0, "Zero borrow");
         
         AaveMarketConfig storage marketConfig = marketConfigs[market];
-        AaveStrategy storage strategy = aaveStrategies[msg.sender];
+        Strategy storage strategy = aaveStrategies[msg.sender];
         
         // Transfer collateral from strategy
         IERC20(marketConfig.underlyingAsset).safeTransferFrom(msg.sender, address(this), supplyAmount);
@@ -497,7 +504,7 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
         onlyStrategy 
         returns (uint256 yield, uint256 donation) 
     {
-        AaveStrategy storage strategy = aaveStrategies[msg.sender];
+        Strategy storage strategy = aaveStrategies[msg.sender];
         require(block.timestamp >= strategy.lastHarvest + 6 hours, "Harvest cooldown");
         
         // Claim Aave rewards using V4-optimized swaps
@@ -655,7 +662,7 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
     }
 
     function _getStrategyTotalValue(address strategy) internal view returns (uint256) {
-        AaveStrategy memory strat = aaveStrategies[strategy];
+        Strategy memory strat = aaveStrategies[strategy];
         return strat.currentShares; // Simplified - would calculate actual value from positions
     }
 
@@ -805,14 +812,3 @@ contract NapFiHyperAaveTokenizedAdapter is ReentrancyGuard, Ownable, ERC6909, Ba
     }
 }
 
-// Required Aave interfaces
-interface IPool {
-    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
-    function withdraw(address asset, uint256 amount, address to) external returns (uint256);
-    function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external;
-    function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) external returns (uint256);
-}
-
-interface IRewardsController {
-    function claimAllRewards(address[] calldata assets, address to) external returns (address[] memory, uint256[] memory);
-}

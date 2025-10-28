@@ -3,8 +3,19 @@ src = "src"
 libs = ["lib"]
 
 remappings = [
+    "v4-core/src/=lib/v4-core/src/",
+    "v4-core/=lib/v4-core/",
     "@openzeppelin-contracts/=lib/openzeppelin-contracts/",
-    "tokenized-strategy/=lib/tokenized-strategy/",
-    "@uniswap/v4-core/=lib/uniswap-v4-core/",
-    "uniswap-hooks/=lib/uniswap-hooks/"
+    "openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/=lib/openzeppelin-contracts/",
+    "tokenized-strategy/=lib/tokenized-strategy/src/",
+    "@tokenized-strategy/=lib/tokenized-strategy-foundry-mix/lib/tokenized-strategy/src/",
+    "tokenized-strategy-periphery/=lib/tokenized-strategy-foundry-mix/lib/tokenized-strategy-periphery/",
+    "@periphery/=lib/tokenized-strategy-foundry-mix/lib/tokenized-strategy-periphery/src/",
+    "@uniswap/v4-core/=lib/v4-core/src/",
+    "uniswap-hooks/=lib/uniswap-hooks/src/",
+    "uniswap-hooks/base/=lib/uniswap-hooks/src/base/",
+    "v4-periphery/=lib/v4-periphery/",
+    "forge-std/=lib/forge-std/src/",
+    "solmate/=lib/v4-core/lib/solmate/src/"
 ]

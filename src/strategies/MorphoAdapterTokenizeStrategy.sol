@@ -9,9 +9,10 @@ pragma solidity ^0.8.20;
  */
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStrategy} from "tokenized-strategy/BaseStrategy.sol";
-import {BaseHealthCheck} from "tokenized-strategy/BaseHealthCheck.sol";
+import {BaseHealthCheck} from "tokenized-strategy-periphery/src/Bases/HealthCheck/BaseHealthCheck.sol";
 import {MorphoAdapter} from "../adapters/MorphoAdapter.sol";
 
 contract NapFiHyperMorphoTokenizedStrategy is BaseHealthCheck {
@@ -20,7 +21,7 @@ contract NapFiHyperMorphoTokenizedStrategy is BaseHealthCheck {
     // --------------------------------------------------
     // Core Configuration
     // --------------------------------------------------
-    NapFiHyperMorphoAdapter public immutable morphoAdapter;
+    MorphoAdapter public immutable morphoAdapter;
     
     // --------------------------------------------------
     // Enhanced Strategy State
@@ -57,7 +58,7 @@ contract NapFiHyperMorphoTokenizedStrategy is BaseHealthCheck {
     // --------------------------------------------------
     // Advanced Configuration
     // --------------------------------------------------
-    uint256 public constant MAX_BPS = 10_000;
+    // uint256 public constant MAX_BPS = 10_000;
     uint256 public autoCompoundThresholdBps = 100; // 1% of idle funds
     uint256 public maxSingleTendMoveBps = 500;     // 5% max move per tend
     uint256 public rebalanceThresholdBps = 200;    // 2% APY improvement threshold

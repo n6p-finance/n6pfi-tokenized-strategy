@@ -10,20 +10,25 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-// import {ReentrancyGuard} from "@openzeppelin-contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin-contracts/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {ERC6909} from "tokenized-strategy/contracts/token/ERC6909/ERC6909.sol";
+import {ERC6909} from "@openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol";
 
 // Spark Protocol Interfaces
 import {ISparkPool} from "../interfaces/ISparkPool.sol";
-import {IRewardsController} from "../interfaces/IRewardsController.sol";
+import {IRewardsController} from "../interfaces/aave/IRewardsController.sol";
 
 // Uniswap hooks/core
 import {BaseHook} from "uniswap-hooks/base/BaseHook.sol";
-import {Hooks} from "v4-core/libraries/Hooks.sol";
+import {Hooks} from "@uniswap/v4-core/libraries/Hooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/types/PoolKey.sol";
+import {BeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
 
 contract SparkAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
     using SafeERC20 for IERC20;
@@ -829,24 +834,4 @@ contract SparkAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
         
         strat.currentShares = 0;
     }
-}
-
-// Required Spark interfaces
-interface ISparkPool {
-    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
-    function withdraw(address asset, uint256 amount, address to) external returns (uint256);
-    function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external;
-    function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) external returns (uint256);
-    function getReserveData(address asset) external view returns (
-        uint256 configuration,
-        uint128 liquidityIndex,
-        uint128 variableBorrowIndex,
-        uint128 currentLiquidityRate,
-        uint128 currentVariableBorrowRate,
-        uint40 lastUpdateTimestamp
-    );
-}
-
-interface IRewardsController {
-    function claimAllRewards(address[] calldata assets, address to) external returns (address[] memory, uint256[] memory);
 }

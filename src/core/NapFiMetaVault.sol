@@ -19,7 +19,7 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "openzeppelin-contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../adapters/AaveAdapter.sol";
@@ -30,9 +30,9 @@ contract NapFiMetaVault is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable asset; // e.g., USDC or DAI
-    NapFiAaveAdapter public aaveAdapter;
-    NapFiSparkAdapter public sparkAdapter;
-    NapFiMorphoAdapter public morphoAdapter;
+    AaveAdapter public aaveAdapter;
+    SparkAdapter public sparkAdapter;
+    MorphoAdapter public morphoAdapter;
 
     uint256 public aaveWeightBps = 4000; // 60% Aave
     uint256 public sparkWeightBps = 3000; // 40% Spark
@@ -50,9 +50,9 @@ contract NapFiMetaVault is Ownable, ReentrancyGuard {
         address _morphoAdapter
     ) {
         asset = IERC20(_asset);
-        aaveAdapter = NapFiAaveAdapter(_aaveAdapter);
-        sparkAdapter = NapFiSparkAdapter(_sparkAdapter);
-        morphoAdapter = NapFiMorphoAdapter(_morphoAdapter);
+        aaveAdapter = AaveAdapter(_aaveAdapter);
+        sparkAdapter = SparkAdapter(_sparkAdapter);
+        morphoAdapter = MorphoAdapter(_morphoAdapter);
     }
 
     //--------------------------------------------------
