@@ -15,13 +15,14 @@ import {BaseStrategy} from "tokenized-strategy/BaseStrategy.sol";
 import {BaseHealthCheck} from "tokenized-strategy-periphery/src/Bases/HealthCheck/BaseHealthCheck.sol";
 import {MorphoAdapter} from "../adapters/MorphoAdapter.sol";
 
-contract NapFiHyperMorphoTokenizedStrategy is BaseHealthCheck {
+contract NapFiHyperMorphoTokenizedStrategy is BaseHealthCheck, Ownable {
     using SafeERC20 for IERC20;
 
     // --------------------------------------------------
     // Core Configuration
     // --------------------------------------------------
     MorphoAdapter public immutable morphoAdapter;
+    bool private _emergencyShutdown;
     
     // --------------------------------------------------
     // Enhanced Strategy State
@@ -878,6 +879,14 @@ contract NapFiHyperMorphoTokenizedStrategy is BaseHealthCheck {
 
     function _getTendThreshold() internal view returns (uint256) {
         return _getAutoCompoundThreshold() / 5;
+    }
+
+    function emergencyShutdown() public view returns (bool) {
+        return _emergencyShutdown;
+    }
+
+    function setEmergencyShutdown(bool shutdown) external onlyOwner{
+        _emergencyShutdown = shutdown;
     }
 
     function _hasSignificantIdleFunds() internal view returns (bool) {
