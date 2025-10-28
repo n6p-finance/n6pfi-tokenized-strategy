@@ -2,71 +2,118 @@
 pragma solidity ^0.8.20;
 
 /**
- * NapFi Morpho Tokenized Strategy (ERC-4626 Wrapper)
- * --------------------------------------------------
- * Wraps the NapFiSparkAdapter inside an ERC-4626-compatible
- * TokenizedStrategy for Octant V2 and Yearn Kalani Vaults.
- * 
- * Limitations:
- * - No external debt handling yet.
- * - ERC-4626 functions (deposit, mint, withdraw, redeem) are inherited
- *   from OpenZeppelin's ERC4626 implementation.
- * 
- * Important Note:
- * This strategy assumes that the underlying adapter (NapFiSparkAdapter)
- * correctly handles interactions with the Morpho protocol.
+ * NapFi Aave Tokenized Strategy (Adapter + ERC-4626 + Donation)
+ * --------------------------------------------------------------
+ * Full Octant/Yearn v3-compatible modular strategy that integrates
+ * NapFiAaveAdapter to manage Aave deposits while using the
+ * TokenizedStrategy inheritance chain for ERC-4626 functionality.
+ *
+ * Architecture:
+ * NapFiAaveTokenizedStrategy
+ *    ↓ inherits from
+ * BaseHealthCheck              → adds safety bounds, role control
+ *    ↓ inherits from
+ * BaseStrategy                 → delegates hooks to child functions
+ *    ↓ uses
+ * YieldDonatingTokenizedStrategy → handles donation share minting
+ *    ↓ inherits from
+ * TokenizedStrategy            → implements ERC-4626 vault standard
  */
 
-import { ERC20 } from "openzeppelin-contracts/token/ERC20/ERC20.sol";
-import { BaseTokenizedStrategy } from "tokenized-strategy/BaseTokenizedStrategy.sol";
-import { NapFiSparkAdapter } from "../adapters/SparkAdapter.sol";
-import {ERC4626} from "openzeppelin-contracts/token/ERC20/extensions/ERC4626.sol";
+import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { BaseHealthCheck } from "tokenized-strategy/BaseHealthCheck.sol";
+import { BaseStrategy } from "tokenized-strategy/BaseStrategy.sol";
+import { YieldDonatingTokenizedStrategy } from "tokenized-strategy/YieldDonatingTokenizedStrategy.sol";
+import { NapFiAaveAdapter } from "../adapters/AaveAdapter.sol";
 
-contract NapFiSparkTokenizedStrategy is BaseTokenizedStrategy, ERC4626 {
-    NapFiSparkAdapter public adapter;
+contract NapFiAaveTokenizedStrategy is BaseHealthCheck {
+    // ------------------------------------------------------------
+    // Core Configuration
+    // ------------------------------------------------------------
+    NapFiAaveAdapter public immutable adapter; // Logic layer (Aave interaction)
+    IERC20 public immutable ASSET;             // Underlying asset (e.g., USDC)
 
-    constructor(address _asset, address _adapter)
-        BaseTokenizedStrategy(_asset, msg.sender)
+    // ------------------------------------------------------------
+    // Constructor
+    // ------------------------------------------------------------
+    constructor(
+        address _asset,
+        string memory _name,
+        address _management,
+        address _keeper,
+        address _emergencyAdmin,
+        address _donationAddress,
+        address _tokenizedStrategyAddress,  // Deployed TokenizedStrategy impl
+        address _adapter                    // NapFiAaveAdapter contract
+    )
+        BaseHealthCheck(
+            _asset,
+            _name,
+            _management,
+            _keeper,
+            _emergencyAdmin,
+            _donationAddress,
+            _tokenizedStrategyAddress
+        )
     {
-        adapter = NapFiMorphoAdapter(_adapter);
+        require(_asset != address(0), "Invalid asset");
+        require(_adapter != address(0), "Invalid adapter");
+
+        adapter = NapFiAaveAdapter(_adapter);
+        ASSET = IERC20(_asset);
+
+        // Pre-approve adapter to optimize deposit gas
+        ASSET.approve(_adapter, type(uint256).max);
     }
 
-    //--------------------------------------------------
-    // Internal Overrides
-    //--------------------------------------------------
-
-    /// @notice Deploy funds to Morpho via the adapter
-    function _deployFunds(uint256 amount) internal override {
-        adapter.depositToMorpho(amount);
+    // ------------------------------------------------------------
+    // 1️. Deploy funds (called when user deposits)
+    // ------------------------------------------------------------
+    /// @dev TokenizedStrategy → BaseStrategy → calls this hook
+    function _deployFunds(uint256 _amount) internal override {
+        if (_amount == 0) return;
+        adapter.depositToAave(_amount);
     }
 
-    /// @notice Withdraw funds when vault needs liquidity
-    function _freeFunds(uint256 amount) internal override {
-        adapter.withdrawFromMorpho(amount, address(this));
+    // ------------------------------------------------------------
+    // 2️. Withdraw funds (called when user redeems)
+    // ------------------------------------------------------------
+    /// @dev TokenizedStrategy → BaseStrategy → calls this hook
+    function _freeFunds(uint256 _amount) internal override {
+        if (_amount == 0) return;
+        adapter.withdrawFromAave(_amount, address(this));
     }
 
-    /// @notice Harvest yield, donate, and report profit/loss
+    // ------------------------------------------------------------
+    // 3️. Harvest yield + report total managed assets
+    // ------------------------------------------------------------
+    /// @dev Called by keeper on report(); TokenizedStrategy calculates yield
     function _harvestAndReport()
         internal
         override
-        returns (uint256 profit, uint256 loss, uint256 debtPayment)
+        returns (uint256 _totalAssets)
     {
-        uint256 beforeAssets = totalAssets();
-        adapter.harvest();
-        uint256 afterAssets = totalAssets();
-
-        if (afterAssets > beforeAssets) {
-            profit = afterAssets - beforeAssets;
-        } else {
-            loss = beforeAssets - afterAssets;
+        // Step 1: trigger adapter’s internal yield logic
+        try adapter.harvest() {
+            // adapter handles donation slicing, claiming rewards, etc.
+        } catch {
+            // continue safely even if adapter has no yield
         }
 
-        // No external debt handling yet
-        return (profit, loss, 0);
+        // Step 2: report updated total assets
+        _totalAssets = adapter.totalAssets();
     }
 
-    /// @notice Total managed assets
-    function totalAssets() public view override returns (uint256) {
-        return adapter.totalAssets();
+    // ------------------------------------------------------------
+    // 4️. Deposit limit enforcement
+    // ------------------------------------------------------------
+    /// @notice Optional; may proxy Aave pool cap via adapter
+    function availableDepositLimit(address)
+        public
+        view
+        override
+        returns (uint256)
+    {
+        return type(uint256).max;
     }
 }
