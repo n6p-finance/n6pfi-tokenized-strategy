@@ -12,7 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStrategy} from "tokenized-strategy/BaseStrategy.sol";
 import {BaseHealthCheck} from "tokenized-strategy/BaseHealthCheck.sol";
-import {NapFiHyperMorphoAdapter} from "../adapters/NapFiHyperMorphoAdapter.sol";
+import {MorphoAdapter} from "../adapters/MorphoAdapter.sol";
 
 contract NapFiHyperMorphoTokenizedStrategy is BaseHealthCheck {
     using SafeERC20 for IERC20;

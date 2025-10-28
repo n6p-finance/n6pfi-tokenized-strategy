@@ -12,7 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseStrategy} from "tokenized-strategy/BaseStrategy.sol";
 import {BaseHealthCheck} from "tokenized-strategy/BaseHealthCheck.sol";
-import {NapFiHyperSparkAdapter} from "../adapters/NapFiHyperSparkAdapter.sol";
+import {SparkAdapter} from "../adapters/SparkAdapter.sol";
 
 contract SparkAdapterTokenizeStrategy is BaseHealthCheck {
     using SafeERC20 for IERC20;

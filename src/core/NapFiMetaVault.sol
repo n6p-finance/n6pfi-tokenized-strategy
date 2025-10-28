@@ -64,18 +64,19 @@ contract NapFiMetaVault is Ownable, ReentrancyGuard {
         require(amount > 0, "zero deposit");
         asset.safeTransferFrom(msg.sender, address(this), amount);
 
-        uint256 aavePortion = (amount * aaveWeightBps) / 10_000;
-        uint256 sparkPortion = amount - aavePortion;
+    uint256 aavePortion = (amount * aaveWeightBps) / 10_000;
+    uint256 sparkPortion = (amount * sparkWeightBps) / 10_000;
+    uint256 morphoPortion = amount - aavePortion - sparkPortion;
 
-        // Route deposits
-        asset.safeIncreaseAllowance(address(aaveAdapter), aavePortion);
+    // Route deposits
+    asset.safeIncreaseAllowance(address(aaveAdapter), aavePortion);
         aaveAdapter.depositToAave(aavePortion);
 
-        asset.safeIncreaseAllowance(address(sparkAdapter), sparkPortion);
-        sparkAdapter.depositToSpark(sparkPortion);
+    asset.safeIncreaseAllowance(address(sparkAdapter), sparkPortion);
+    sparkAdapter.depositToSpark(sparkPortion);
 
-        asset.safeIncreaseAllowance(address(morphoAdapter), morphoPortion);
-        morphoAdapter.depositToMorpho(morphoPortion);
+    asset.safeIncreaseAllowance(address(morphoAdapter), morphoPortion);
+    morphoAdapter.depositToMorpho(morphoPortion);
 
         emit Deposited(amount, aavePortion, sparkPortion, morphoPortion);
     }
@@ -106,7 +107,7 @@ contract NapFiMetaVault is Ownable, ReentrancyGuard {
 
     /// @notice View combined total assets across both adapters
     function totalAssets() public view returns (uint256) {
-        return aaveAdapter.totalAssets() + sparkAdapter.totalAssets(); + morphoAdapter.totalAssets();
+        return aaveAdapter.totalAssets() + sparkAdapter.totalAssets() + morphoAdapter.totalAssets();
     }
 
     ///----------------------------------------------

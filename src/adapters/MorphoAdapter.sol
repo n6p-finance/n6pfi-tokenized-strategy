@@ -9,25 +9,25 @@ pragma solidity ^0.8.20;
  * full tokenization capabilities for multiple ERC-4626 strategies
  */
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ERC6909} from "@openzeppelin/contracts/token/ERC6909/ERC6909.sol";
+import {IERC20} from "@openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+// import {ReentrancyGuard} from "@openzeppelin-contracts/security/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin-contracts/contracts/access/Ownable.sol";
+import {Math} from "@openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {ERC6909} from "tokenized-strategy/contracts/token/ERC6909/ERC6909.sol";
 
 // Morpho V2 Interfaces (based on their vault-v2 architecture)
 import {IMorpho} from "../interfaces/IMorpho.sol";
-import {IMorphoMarket} from "../interfaces/IMorphoMarket.sol";
-import {IMorphoRewards} from "../interfaces/IMorphoRewards.sol";
+//import {IMorphoMarket} from "../interfaces/IMorphoMarket.sol";
+//import {IMorphoRewards} from "../interfaces/IMorphoRewards.sol";
 
-// Uniswap V4 Core + Hooks
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+// Uniswap hooks/core
+import {BaseHook} from "uniswap-hooks/base/BaseHook.sol";
+import {Hooks} from "v4-core/libraries/Hooks.sol";
+import {IPoolManager} from "@uniswap/v4-core/interfaces/IPoolManager.sol";
+import {PoolKey} from "@uniswap/v4-core/types/PoolKey.sol";
 
-contract NapFiHyperMorphoAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
+contract MorphoAdapter is ReentrancyGuard, Ownable, ERC6909, BaseHook {
     using SafeERC20 for IERC20;
     using Math for uint256;
 

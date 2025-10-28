@@ -1,1 +1,0 @@
-Differentiate tst coverage of strategy, thhere's mock strategy test and Strategy test.
