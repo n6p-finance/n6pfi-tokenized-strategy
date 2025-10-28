@@ -6,6 +6,5 @@ remappings = [
     "@openzeppelin-contracts/=lib/openzeppelin-contracts/",
     "tokenized-strategy/=lib/tokenized-strategy/",
     "@uniswap/v4-core/=lib/uniswap-v4-core/",
-    "uniswap-hooks/=lib/uniswap-hooks/",
-    "forge-std/=lib/forge-std/src/"
+    "uniswap-hooks/=lib/uniswap-hooks/"
 ]
