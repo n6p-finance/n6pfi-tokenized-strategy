@@ -13,7 +13,8 @@ import {SafeERC20} from "@openzeppelin-contracts/contracts/token/ERC20/utils/Saf
 import {ReentrancyGuard} from "@openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin-contracts/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {ERC6909} from "@openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol";
+import {ERC6909} from "@openzeppelin-contracts/contracts/token/ERC6909/draft-ERC6909.sol"; // should be v4-core uniswap
+
 // Aave V3 Interfaces
 import {IPool} from "../interfaces/aave/IPool.sol";
 import {IRewardsController} from "../interfaces/aave/IRewardsController.sol";
